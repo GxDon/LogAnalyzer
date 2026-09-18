@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import re
+from collections import Counter
+from datetime import datetime
+
+
+PATTERNS = {
+
+    "failed_auth":
+        re.compile(
+            r"(failed|failure|authentication failed|invalid password|login failed)",
+            re.IGNORECASE
+        ),
+
+    "sudo":
+        re.compile(
+            r"\bsudo\b",
+            re.IGNORECASE
+        ),
+
+    "critical":
+        re.compile(
+            r"\b(critical|crit|panic|fatal)\b",
+            re.IGNORECASE
+        ),
+
+    "error":
+        re.compile(
+            r"\b(error|err)\b",
+            re.IGNORECASE
+        ),
+
+    "connection":
+        re.compile(
+            r"\b(connection|disconnect|timeout|refused)\b",
+            re.IGNORECASE
+        )
+}
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description="GxLogAnalyzer - análisis defensivo de logs"
+    )
+
+    parser.add_argument(
+        "file",
+        help="Archivo de log"
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="reports/log_analysis.json"
+    )
+
+    args = parser.parse_args()
+
+    if not os.path.isfile(args.file):
+
+        print("[!] Archivo no encontrado.")
+        return
+
+    counts = Counter()
+
+    samples = {
+        name: []
+        for name in PATTERNS
+    }
+
+    total_lines = 0
+
+    with open(
+        args.file,
+        "r",
+        encoding="utf-8",
+        errors="replace"
+    ) as file:
+
+        for line in file:
+
+            total_lines += 1
+
+            for name, pattern in PATTERNS.items():
+
+                if pattern.search(line):
+
+                    counts[name] += 1
+
+                    if len(samples[name]) < 5:
+
+                        samples[name].append(
+                            line.rstrip()
+                        )
+
+    report = {
+
+        "tool": "GxLogAnalyzer",
+
+        "version": "1.1.0",
+
+        "timestamp_utc":
+            datetime.utcnow().isoformat() + "Z",
+
+        "file":
+            os.path.abspath(args.file),
+
+        "total_lines":
+            total_lines,
+
+        "counts":
+            dict(counts),
+
+        "samples":
+            samples
+    }
+
+    os.makedirs(
+        os.path.dirname(args.output) or ".",
+        exist_ok=True
+    )
+
+    with open(
+        args.output,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            report,
+            file,
+            indent=2,
+            ensure_ascii=False
+        )
+
+    print("\n[+] GxLogAnalyzer")
+    print(f"[+] Líneas analizadas: {total_lines}")
+
+    for name, count in counts.items():
+
+        print(
+            f"    {name}: {count}"
+        )
+
+    print(f"[+] Reporte: {args.output}")
+
+
+if name == "main":
+    main()
