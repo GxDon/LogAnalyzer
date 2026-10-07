@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import re
+
+
+PATTERNS = {
+    "errors": r"\b(error|critical|fatal)\b",
+    "warnings": r"\b(warn|warning)\b",
+    "authentication":
+        r"\b(failed password|authentication failure|login failed)\b",
+    "sudo": r"\bsudo\b",
+}
+
+
+def analyze(path):
+    counts = {
+        key: 0
+        for key in PATTERNS
+    }
+
+    samples = {
+        key: []
+        for key in PATTERNS
+    }
+
+    with open(
+        path,
+        "r",
+        encoding="utf-8",
+        errors="ignore"
+    ) as f:
+
+        for line in f:
+
+            for category, pattern in PATTERNS.items():
+
+                if re.search(
+                    pattern,
+                    line,
+                    re.IGNORECASE
+                ):
+
+                    counts[category] += 1
+
+                    if len(
+                        samples[category]
+                    ) < 5:
+
+                        samples[category].append(
+                            line.strip()
+                        )
+
+    return counts, samples
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Log-analyzer-x"
+    )
+
+    parser.add_argument(
+        "logfile"
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="log_analyzer_report.json"
+    )
+
+    args = parser.parse_args()
+
+    if not os.path.isfile(
+        args.logfile
+    ):
+        raise SystemExit(
+            f"[!] Archivo no encontrado: {args.logfile}"
+        )
+
+    try:
+
+        counts, samples = analyze(
+            args.logfile
+        )
+
+        report = {
+            "tool": "Log-analyzer-x",
+            "file": os.path.abspath(
+                args.logfile
+            ),
+            "counts": counts,
+            "samples": samples,
+        }
+
+        with open(
+            args.output,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            json.dump(
+                report,
+                f,
+                indent=2,
+                ensure_ascii=False
+            )
+
+    except OSError as error:
+
+        raise SystemExit(
+            f"[!] Error de archivo: {error}"
+        )
+
+    print(
+        "[+] Análisis terminado"
+    )
+
+    print(
+        json.dumps(
+            counts,
+            indent=2
+        )
+    )
+
+    print(
+        f"[+] Reporte: {args.output}"
+    )
+
+
+if name == "main":
+    main()
